@@ -1,0 +1,236 @@
+- hosts: all
+  become: yes
+  become_user: root
+
+  tasks:
+   
+    - name: Install additional packages
+      yum:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - yum-utils
+        - device-mapper-persistent-data
+        - lvm2
+        - docker-python
+
+    - name: Check if docker repo already set up
+      stat: 
+        path: /etc/yum.repos.d/docker-ce.repo
+      register: docker_repo  
+
+    - name: Add docker-ce repo
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+      when: docker_repo.stat.isfile is not defined
+
+    - name: Install docker
+      yum:
+        name: docker-ce
+        state: present
+      when: docker_repo.stat.isfile is not defined
+
+    - name: just force systemd to reread configs (2.4 and above)
+      systemd: daemon_reload=yes
+      when: docker_repo.stat.isfile is not defined
+
+    - name: Start docker
+      systemd:
+        name: docker.service
+        state: started
+        enabled: True
+
+    - name: Create docker group
+      group:
+        name: docker
+        state: present
+
+    - name: Add vagrant user to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+
+    # https://github.com/prometheus/node_exporter  
+    - name: Start node_exporter container
+      docker_container:
+        image: prom/node-exporter:v0.15.2
+        name: prom-node-exporter
+        state: started
+        restart: yes
+        detach: True
+        log_driver: journald
+        ports:
+          - "9100:9100"
+            
+
+- hosts: elasticsearch
+  become: yes
+  become_user: root
+  
+  vars:
+    elasticsearch_image_version: 6.1.1
+    elasticsearch_exporter_image_version: 1.0.1
+    elasticsearch_hosts: "192.168.2.12,192.168.2.13,192.168.2.14,192.168.2.15"
+    elasticsearch_master_nodes: 4
+    elasticsearch_publish_host: "{{ ansible_eth1.ipv4.address }}" # for vagrant we need eth1 instead eth0
+
+  tasks:
+    # Configure systctl
+    # sudo sysctl -w vm.max_map_count=262144
+    - name: Set vm.max_map_count=262144
+      sysctl:
+        name: vm.max_map_count
+        value: 262144
+        state: present
+        reload: yes
+
+    # https://www.docker.elastic.co/#
+    - name: Start elasticsearch 6.1.1 container
+      docker_container:
+        image: docker.elastic.co/elasticsearch/elasticsearch:{{ elasticsearch_image_version }}
+        name: elasticsearch
+        state: started
+        restart: yes
+        detach: True
+        log_driver: journald
+        env:
+          ELASTIC_PASSWORD: "MagicWord"
+          node.name: ${HOSTNAME}
+          cluster.name: "docker-cluster"
+          bootstrap.memory_lock: "false"
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+          discovery.zen.ping.unicast.hosts: "{{ elasticsearch_hosts }}"
+          discovery.zen.minimum_master_nodes: "{{ elasticsearch_master_nodes }}"
+          network.host: '_site:ipv4_'
+          network.publish_host: "{{ elasticsearch_publish_host }}"
+          xpack.security.enabled: "false"
+        ulimits:
+          - "nofile:65536:65536"
+        volumes:
+          - "/usr/share/elasticsearch/data"
+        ports:
+          - "9200:9200"
+          - "9300:9300"
+    # https://github.com/justwatchcom/elasticsearch_exporter
+    - name: Start elasticsearch_exporter
+      docker_container:
+        image: justwatch/elasticsearch_exporter:{{ elasticsearch_exporter_image_version }}
+        name: elasticsearch_exporter
+        state: started
+        restart: yes
+        log_driver: journald
+        ports:
+          - "9108:9108"
+        command: 
+          - '-es.uri=http://{{ ansible_eth1.ipv4.address }}:9200'
+
+    
+- hosts: monitoring
+  become: yes
+  become_user: root
+  vars:
+    slack_web_hook: "https://hooks.slack.com/services/XXX/YYY"
+    slack_monitoring_channel: "your-monitoring"
+    prometheus_image_version: "v1.1.1"
+    alertmanager_image_version: "v0.11.0"
+    grafana_image_version: "4.0.2"
+
+  tasks:   
+    - name: copy prometheus files to /home/vagrant
+      copy:
+        src: files/{{ item }}
+        dest: /home/vagrant/{{ item }}
+        owner: vagrant
+        group: vagrant
+        mode: 0644
+      with_items:
+        - prometheus.yml
+        - alert.rules
+
+    - name: copy alertmanager.conf to /home/vagrant
+      template:
+        src: templates/alertmanager.conf.j2
+        dest: /home/vagrant/alertmanager.conf
+        owner: vagrant
+        group: vagrant
+        mode: 0644
+
+    # 
+    - name: Start prometheus
+      docker_container:
+        image: prom/prometheus:{{ prometheus_image_version }}
+        name: prometheus
+        state: started
+        restart: yes
+        detach: True
+        log_driver: journald
+        volumes:
+          - "/home/vagrant/prometheus.yml:/etc/prometheus"
+          - "/home/vagrant/alert.rules:/etc/prometheus/alert.rules"
+          - "/var/lib/prometheus:/var/lib/prometheus"
+        ports:
+          - "9090:9090"
+        command: >
+          -config.file=/etc/prometheus/prometheus.yml  
+          -alertmanager.url=http://localhost:9093 
+          -storage.local.retention=8760h 
+          -storage.local.path=/var/lib/prometheus 
+          -web.console.libraries=/etc/prometheus 
+          -web.console.templates=/etc/prometheus
+
+    # https://github.com/prometheus/alertmanager
+    - name: Start alertmanager
+      docker_container:
+        image: prom/alertmanager:{{ alertmanager_image_version }}
+        name: alertmanager
+        state: started
+        log_driver: journald
+        volumes:
+          - "/etc/prometheus:/etc/prometheus"
+          - "/home/vagrant/alertmanager.conf:/etc/prometheus/alertmanager.conf"
+        ports:
+          - "9093:9093"
+        command:
+          - '-config.file=/etc/prometheus/alertmanager.conf'
+
+    # https://prometheus.io/docs/visualization/grafana/
+    # https://github.com/grafana/grafana-docker
+    - name: Create Grafana as persistent volume storage
+      docker_container:
+        image: busybox
+        name: grafana-storage
+        volumes:
+          - /var/lib/grafana
+
+    - name: Start grafana
+      docker_container:
+        image: grafana/grafana:{{ grafana_image_version }}
+        name: prom-grafana
+        state: started
+        restart: yes
+        detach: True
+        log_driver: journald
+        env:
+          GF_AUTH_ANONYMOUS_ENABLED: true
+          GF_AUTH_BASIC_ENABLED: false 
+        volumes_from:
+          - grafana-storage
+        ports:
+          - "3000:3000"
+
+    # https://github.com/lmenezes/cerebro
+    # https://github.com/dylanmei/docker-cerebro
+    - name: Start cerebro
+      docker_container:
+        image: dylanmei/cerebro
+        name: cerebro
+        state: started
+        restart: yes
+        detach: True
+        log_driver: journald
+        ports:
+          - "9000:9000"
+        command: 
+          - 'bin/cerebro -Dhosts.0.host=http://{{ ansible_eth1.ipv4.address }}:9200'

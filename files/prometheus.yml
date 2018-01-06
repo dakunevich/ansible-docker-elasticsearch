@@ -1,0 +1,48 @@
+# https://prometheus.io/docs/operating/configuration/
+### prometheus.yml ###
+
+global:
+   scrape_interval: 1m
+   scrape_timeout: 10s 
+  evaluation_interval: 1m
+
+rule_files:
+  - '/etc/prometheus/alert.rules'
+
+# A scrape configuration containing exactly one endpoint to scrape:
+scrape_configs:
+  - job_name: "node"
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['192.168.2.11:9100']
+        labels: {'host': 'node1', 'service': 'system'}     
+      - targets: ['192.168.2.12:9100']
+        labels: {'host': 'node2', 'service': 'system'}
+      - targets: ['192.168.2.13:9100'] 
+        labels: {'host': 'node3', 'service': 'system'}
+      - targets: ['192.168.2.14:9100']
+        labels: {'host': 'node4', 'service': 'system'}
+      - targets: ['192.168.2.15:9100']
+        labels: {'host': 'node5', 'service': 'system'}
+
+  - job_name: elasticsearch
+    scrape_interval: 30s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ['192.168.2.12:9108']
+        labels: {'host': 'es_node1', 'service': 'elasticsearch'}
+      - targets: ['192.168.2.13:9108'] 
+        labels: {'host': 'es_node2', 'service': 'elasticsearch'}
+      - targets: ['192.168.2.14:9108']
+        labels: {'host': 'es_node3', 'service': 'elasticsearch'}
+      - targets: ['192.168.2.15:9108']
+        labels: {'host': 'es_node4', 'service': 'elasticsearch'}
+    relabel_configs:
+    - source_labels: [__address__]
+      regex: '(.*)\:9108'
+      target_label:  'instance'
+      replacement:   '$1'
+    - source_labels: [__address__]
+      regex:         '.*\.(.*)\.lan.*'
+      target_label:  'environment'
+      replacement:   '$1'

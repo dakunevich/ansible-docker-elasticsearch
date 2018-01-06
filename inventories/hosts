@@ -1,0 +1,8 @@
+[elasticsearch]
+node-02 ansible_host=192.168.2.12
+node-03 ansible_host=192.168.2.13
+node-04 ansible_host=192.168.2.14
+node-05 ansible_host=192.168.2.15
+
+[monitoring]
+node-01 ansible_host=192.168.2.11
