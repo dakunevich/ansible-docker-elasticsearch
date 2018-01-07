@@ -1,0 +1,7 @@
+---
+slack_web_hook: "https://hooks.slack.com/services/XXX/YYY"
+slack_monitoring_channel: "your-monitoring"
+prometheus_image_version: "v1.1.1"
+alertmanager_image_version: "v0.11.0"
+grafana_image_version: "4.0.2"
+elasticsearch_first_node: "{{ groups['elasticsearch'][0] }}"

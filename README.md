@@ -1,5 +1,5 @@
 # ansible-docker-elasticsearch
-Run elasticsearch cluster on docker containers
+Run elasticsearch cluster on docker containers (without orchestration)
 
 Ansible playbook to [Install Elasticsearch with Docker](https://www.elastic.co/guide/en/elasticsearch/reference/current/docker.html)
 
@@ -7,14 +7,34 @@ Ansible playbook to [Install Elasticsearch with Docker](https://www.elastic.co/g
 
 [Alertmanager](https://github.com/prometheus/alertmanager) to send alert to Slack
 
-[Grafana](https://github.com/grafana/grafana-docker) to check metrics 
+[Grafana](https://github.com/grafana/grafana-docker) to check metrics
 
 [Cerebro](https://github.com/dylanmei/docker-cerebro) for administering elasticsearch cluster
 
+## Grafana
+A couple of dashboards you can find in
+[dashboards](dashboards/)
+
+
+## Alertmanager
+set slack parameters (web hook address and channel) in
+
+```sh
+vars/monitoring_vars.yml
+```
+
 ## Test it!
-Install VirtualBox, Vagrant, git clone and ... 
+Install VirtualBox, Vagrant, git clone and ...
+
+> provided Vagrant file creates 5 nodes runing CentOS7
+
+> node config: 2 CPU / 1.5 Gb RAM / 40 Gb disk
+
+> 1st node - monitoring and manage tools
+
+> all the rest nodes will hold elasticsearch containers
+
 
 ```sh
 $ vagrant up
 ```
-

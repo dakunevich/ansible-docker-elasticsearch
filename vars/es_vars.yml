@@ -1,0 +1,6 @@
+---
+elasticsearch_image_version: 6.1.1
+elasticsearch_exporter_image_version: 1.0.1
+elasticsearch_hosts: "{{ groups['elasticsearch'] | join(',') }}"
+elasticsearch_master_nodes: 4
+elasticsearch_publish_host: "{{ ansible_eth1.ipv4.address }}" # for vagrant we need eth1 instead eth0
