@@ -1,2 +1,2 @@
 ---
-node_exporter_image_version: "v0.15.2"
+user: "vagrant" # assuming we use vagrant and virtualbox for testing

@@ -4,3 +4,4 @@ elasticsearch_exporter_image_version: 1.0.1
 elasticsearch_hosts: "{{ groups['elasticsearch'] | join(',') }}"
 elasticsearch_master_nodes: 4
 elasticsearch_publish_host: "{{ ansible_eth1.ipv4.address }}" # for vagrant we need eth1 instead eth0
+elasticsearch_max_map_count: 262144 # For running elasticseach we need to set at least vm.max_map_count=262144

@@ -4,6 +4,7 @@
 
   vars_files:
     - vars/all_vars.yml
+    - vars/all_container_vars.yml
 
   tasks:
 
@@ -49,9 +50,9 @@
         name: docker
         state: present
 
-    - name: Add vagrant user to docker group
+    - name: Add  user to docker group
       user:
-        name: vagrant
+        name: "{{ user }}"
         groups: docker
         append: yes
 
@@ -78,11 +79,10 @@
 
   tasks:
     # Configure systctl
-    # sudo sysctl -w vm.max_map_count=262144
-    - name: Set vm.max_map_count=262144
+    - name: Set vm.max_map_count={{ elasticsearch_max_map_count }}
       sysctl:
         name: vm.max_map_count
-        value: 262144
+        value: "{{ elasticsearch_max_map_count }}"
         state: present
         reload: yes
 
@@ -131,26 +131,39 @@
   become: yes
   become_user: root
   vars_files:
+    - vars/all_vars.yml
     - vars/monitoring_vars.yml
 
   tasks:
-    - name: copy prometheus files to /home/vagrant
+    - name: Create prometheus folder
+      file:
+        path: /home/{{ user }}/prometheus
+        owner: "{{ user }}"
+        group: "{{ user }}"
+        state: directory
+        mode: 0755
+
+    - name: copy prometheus files to /home/{{ user }}
       copy:
         src: files/{{ item }}
-        dest: /home/vagrant/{{ item }}
-        owner: vagrant
-        group: vagrant
+        dest: /home/{{ user }}/prometheus/{{ item }}
+        owner: "{{ user }}"
+        group: "{{ user }}"
         mode: 0644
       with_items:
-        - prometheus.yml
         - alert.rules
 
-    - name: copy alertmanager.conf to /home/vagrant
+    - name: create and copy prometheus.yml
+      template:
+        src: templates/prometheus.yml.j2
+        dest: /home/{{ user }}/prometheus/prometheus.yml
+
+    - name: copy alertmanager.conf to /home/{{ user }}
       template:
         src: templates/alertmanager.conf.j2
-        dest: /home/vagrant/alertmanager.conf
-        owner: vagrant
-        group: vagrant
+        dest: /home/{{ user }}/prometheus/alertmanager.conf
+        owner: "{{ user }}"
+        group: "{{ user }}"
         mode: 0644
 
     #
@@ -163,7 +176,7 @@
         detach: True
         log_driver: journald
         volumes:
-          - "/home/vagrant:/etc/prometheus"
+          - "/home/{{ user }}/prometheus:/etc/prometheus"
           - "/var/lib/prometheus:/var/lib/prometheus"
         ports:
           - "9090:9090"
@@ -184,7 +197,7 @@
         log_driver: journald
         volumes:
           - "/etc/prometheus:/etc/prometheus"
-          - "/home/vagrant/alertmanager.conf:/etc/prometheus/alertmanager.conf"
+          - "/home/{{ user }}/alertmanager.conf:/etc/prometheus/alertmanager.conf"
         ports:
           - "9093:9093"
         command:
