@@ -163,8 +163,7 @@
         detach: True
         log_driver: journald
         volumes:
-          - "/home/vagrant/prometheus.yml:/etc/prometheus"
-          - "/home/vagrant/alert.rules:/etc/prometheus/alert.rules"
+          - "/home/vagrant:/etc/prometheus"
           - "/var/lib/prometheus:/var/lib/prometheus"
         ports:
           - "9090:9090"
