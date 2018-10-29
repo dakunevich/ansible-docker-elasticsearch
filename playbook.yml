@@ -1,3 +1,4 @@
+---
 - hosts: all
   become: yes
   become_user: root
@@ -67,7 +68,6 @@
         log_driver: journald
         ports:
           - "9100:9100"
-            
 
 - hosts: elasticsearch
   become: yes

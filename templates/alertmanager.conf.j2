@@ -1,17 +1,17 @@
-# https://prometheus.io/docs/alerting/configuration/#slack-receiver-<slack_config> 
-# https://prometheus.io/blog/2016/03/03/custom-alertmanager-templates  
+# https://prometheus.io/docs/alerting/configuration/#slack-receiver-<slack_config>
+# https://prometheus.io/blog/2016/03/03/custom-alertmanager-templates
 
 global:  
 route:  
   receiver: 'slack'
-  group_wait: 30s 
-  group_interval: 5m 
+  group_wait: 30s
+  group_interval: 5m
   repeat_interval: 4h
-  receivers:  
-  - name: 'slack'
-    slack_configs:
+  receivers:  
+  - name: 'slack'
+    slack_configs:
     - api_url: '{{ slack_web_hook }}' #'https://hooks.slack.com/services/XXX/YYY' 
-      channel: '{{ slack_monitoring_channel }}' #'your-monitoring' 
+      channel: '{{ slack_monitoring_channel }}' #'your-monitoring'
       # Whenever you have problems with conflicting characters in Ansible,
       # a rule of thumb is to output them as a string in a Jinja expression.
       text: '{{ '{{' }} .CommonAnnotations.description {{ '}}' }}'
